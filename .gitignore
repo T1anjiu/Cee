@@ -1,0 +1,40 @@
+# Binaries
+watch-together
+watch-together.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+*.out
+
+# Upload directory
+uploads/
+
+# Node
+node_modules/
+
+# Frontend build
+web/dist/
+web/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# Go workspace
+go.work
+go.work.sum
