@@ -133,6 +133,14 @@ function runSync() {
   const ve = videoEl.value
   const p = props.player
 
+  if (ve.paused) {
+    // When paused, reduce sync frequency to save CPU
+    syncTimer = setTimeout(() => {
+      syncTimer = requestAnimationFrame(runSync)
+    }, 1000) as any
+    return
+  }
+
   // Compute expected position in real-time every frame
   let expectedPos: number
   if (p.playing) {
@@ -141,7 +149,7 @@ function runSync() {
     expectedPos = p.position
   }
 
-  if (expectedPos < 0 || ve.paused) {
+  if (expectedPos < 0) {
     syncTimer = requestAnimationFrame(runSync)
     return
   }

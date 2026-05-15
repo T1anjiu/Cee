@@ -28,7 +28,8 @@ func TestPlayingToBufferingPaused(t *testing.T) {
 	now := time.Now().UnixMilli()
 
 	psm.HandlePlay(0, now)
-	psm.ColdStartUntil = 0 // no cold start
+	psm.ColdStartUntil = 0      // no cold start
+	psm.BufferingShieldUntil = 0 // no shield (test cold-start behavior)
 
 	t1 := psm.HandleBuffering("member1", true, now+1000)
 	if t1 == nil || !t1.NewPlaying == false || t1.Reason != "buffering" {
@@ -45,6 +46,7 @@ func TestBufferingPausedToPlayingOnClear(t *testing.T) {
 
 	psm.HandlePlay(0, now)
 	psm.ColdStartUntil = 0
+	psm.BufferingShieldUntil = 0
 	psm.HandleBuffering("member1", true, now+1000)
 
 	t1 := psm.HandleBuffering("member1", false, now+2000)
@@ -92,6 +94,7 @@ func TestMemberLeaveClearsBuffering(t *testing.T) {
 
 	psm.HandlePlay(0, now)
 	psm.ColdStartUntil = 0
+	psm.BufferingShieldUntil = 0
 	psm.HandleBuffering("member1", true, now+1000)
 	psm.HandleBuffering("member2", true, now+1000)
 

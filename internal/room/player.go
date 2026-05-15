@@ -46,11 +46,7 @@ func (psm *PlayerStateMachine) HandlePlay(position float64, now int64) *PlayerTr
 
 	psm.Position = position
 	psm.UpdatedAt = now
-
-	if psm.State == StateBufferingPaused {
-		psm.BufferingShieldUntil = now + 4000
-	}
-
+	psm.BufferingShieldUntil = now + 4000
 	psm.State = StatePlaying
 	psm.Playing = true
 

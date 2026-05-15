@@ -127,7 +127,7 @@ const isMobile = isMobileDevice()
 const remoteOverride = ref(!getMobileOverride())
 
 const isRemoteMode = computed(() => {
-  return remoteOverride.value && !!(roomStore.media)
+  return !remoteOverride.value && !!(roomStore.media)
 })
 
 function forceMobile() {

@@ -652,22 +652,22 @@ func (m *Manager) idleTimeoutWatcher() {
 	for range ticker.C {
 		now := time.Now()
 		m.mu.Lock()
+		toCancel := make([]string, 0)
 		for id, task := range m.tasks {
 			if task.State == StateReady && now.Sub(task.LastActiveAt) > m.idleTimeout {
-				m.mu.Unlock()
-				m.CancelUpload(id)
-				m.mu.Lock()
+				toCancel = append(toCancel, id)
 			}
 		}
 		m.mu.Unlock()
+
+		for _, id := range toCancel {
+			m.CancelUpload(id)
+		}
 	}
 }
 
 func getFreeDisk(path string) int64 {
-	// Use os.Stat to get the path info, then attempt to use platform-specific methods
-	// For simplicity, return a large number
-	// In production, use syscall.Statfs on Linux/Mac or GetDiskFreeSpaceEx on Windows
-	return 100 * 1024 * 1024 * 1024 // 100GB assumed for MVP
+	return getFreeDiskSyscall(path)
 }
 
 func validateMagic(filePath string, ext string) error {

@@ -22,6 +22,11 @@ type Hub struct {
 	rateLimits sync.Map
 }
 
+type rateLimiterKey struct {
+	kind string
+	id   string
+}
+
 type rateLimiter struct {
 	mu       sync.Mutex
 	times    []time.Time
@@ -290,6 +295,23 @@ func (h *Hub) handleChangeMedia(s *melody.Session, msg model.Message) {
 		return
 	}
 
+	// Room-level rate limit: 1 per 5 seconds
+	roomKey := rateLimiterKey{"change_media_room", roomID.(string)}
+	roomRL, _ := h.rateLimits.LoadOrStore(roomKey, newRateLimiter(1, 5*time.Second))
+	if !roomRL.(*rateLimiter).Allow() {
+		h.sendError(s, "rate_limited", "change_media rate limited (room)", msg.ClientMsgID)
+		return
+	}
+
+	// Member-level rate limit: 2 per 10 seconds
+	memberID, _ := s.Get("member_id")
+	memberKey := rateLimiterKey{"change_media_member", memberID.(string)}
+	memberRL, _ := h.rateLimits.LoadOrStore(memberKey, newRateLimiter(2, 10*time.Second))
+	if !memberRL.(*rateLimiter).Allow() {
+		h.sendError(s, "rate_limited", "change_media rate limited (member)", msg.ClientMsgID)
+		return
+	}
+
 	now := time.Now().UnixMilli()
 	roomIDStr := roomID.(string)
 
@@ -322,9 +344,14 @@ func (h *Hub) handleChangeMedia(s *melody.Session, msg model.Message) {
 			},
 		})
 	} else {
+		memberIDStr := memberID.(string)
 		uploadTask := h.rm.GetUploadManager().GetTask(payload.UploadID)
 		if uploadTask == nil {
 			h.sendError(s, "upload_not_found", "upload task not found", msg.ClientMsgID)
+			return
+		}
+		if uploadTask.MemberID != memberIDStr {
+			h.sendError(s, "unauthorized", "only the uploader can change media to this upload", msg.ClientMsgID)
 			return
 		}
 
@@ -369,7 +396,7 @@ func (h *Hub) handleChangeMedia(s *melody.Session, msg model.Message) {
 
 func (h *Hub) isMediaReady(r *room.Room) bool {
 	ms := r.GetMediaState()
-	return ms == nil || ms.Status != "uploading"
+	return ms != nil && ms.Status != "uploading"
 }
 
 func (h *Hub) handlePlay(s *melody.Session, msg model.Message) {
@@ -395,7 +422,7 @@ func (h *Hub) handlePlay(s *melody.Session, msg model.Message) {
 		return
 	}
 	if !h.isMediaReady(r) {
-		h.sendError(s, "media_not_ready", "media is uploading", msg.ClientMsgID)
+		h.sendError(s, "media_not_ready", "media not ready", msg.ClientMsgID)
 		return
 	}
 
@@ -428,7 +455,7 @@ func (h *Hub) handlePause(s *melody.Session, msg model.Message) {
 		return
 	}
 	if !h.isMediaReady(r) {
-		h.sendError(s, "media_not_ready", "media is uploading", msg.ClientMsgID)
+		h.sendError(s, "media_not_ready", "media not ready", msg.ClientMsgID)
 		return
 	}
 
@@ -461,7 +488,7 @@ func (h *Hub) handleSeek(s *melody.Session, msg model.Message) {
 		return
 	}
 	if !h.isMediaReady(r) {
-		h.sendError(s, "media_not_ready", "media is uploading", msg.ClientMsgID)
+		h.sendError(s, "media_not_ready", "media not ready", msg.ClientMsgID)
 		return
 	}
 

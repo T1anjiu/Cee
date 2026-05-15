@@ -78,6 +78,7 @@ export function useUploader() {
     onProgress?: (bytesUploaded: number, bytesTotal: number) => void,
   ) {
     let lastReportedBytes = 0
+    let lastReportedTime = Date.now()
     const activePromises = new Set<Promise<void>>()
 
     for (let i = 0; i < totalChunks; i++) {
@@ -86,6 +87,15 @@ export function useUploader() {
       const p = uploadSingleChunk(i, file, memberToken, uploadId, chunkSize)
       activePromises.add(p)
       p.finally(() => activePromises.delete(p))
+
+      // Throttled progress reporting: ≥ 1 MiB or ≥ 250ms
+      const now = Date.now()
+      const bytesSinceLastReport = task.bytesUploaded - lastReportedBytes
+      if (onProgress && (bytesSinceLastReport >= 1024 * 1024 || now - lastReportedTime >= 250)) {
+        onProgress(task.bytesUploaded, file.size)
+        lastReportedBytes = task.bytesUploaded
+        lastReportedTime = now
+      }
 
       // Wait when concurrency limit reached
       if (activePromises.size >= 2) {
