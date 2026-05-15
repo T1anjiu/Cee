@@ -1,59 +1,49 @@
 <template>
-  <div class="room-layout">
-    <n-modal v-model:show="showNicknameModal" :mask-closable="false" preset="dialog" title="加入房间" class="nickname-modal">
-      <template #default>
-        <div style="padding: 8px 0;">
-          <n-input v-model:value="nicknameInput" placeholder="输入你的昵称" size="large" @keyup.enter="confirmNickname" />
-        </div>
-      </template>
-      <template #action>
-        <n-button type="primary" @click="confirmNickname" style="width: 100%;">加入</n-button>
-      </template>
-    </n-modal>
+  <n-modal v-model:show="showNicknameModal" :mask-closable="false" preset="dialog" title="加入房间" positive-text="加入" @positive-click="confirmNickname">
+    <n-input v-model:value="nicknameInput" placeholder="输入你的昵称" size="large" @keyup.enter="confirmNickname" />
+  </n-modal>
 
+  <n-layout style="height:100vh;background:#0c0c14;">
     <!-- Top Bar -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="topbar-brand">Cee</span>
-        <span class="topbar-sep">/</span>
-        <span class="topbar-room">{{ roomStore.roomId }}</span>
-        <span class="topbar-dot" :class="{ connected: roomStore.connected }"></span>
-      </div>
-      <div class="topbar-right">
-        <n-button text style="color: rgba(255,255,255,0.4); font-size: 12px;" @click="forceDesktop" v-if="isRemoteMode">
-          完整视图
-        </n-button>
-        <n-button text style="color: rgba(255,255,255,0.4); font-size: 12px;" @click="forceMobile" v-if="!isRemoteMode && isMobile">
-          遥控器
-        </n-button>
-      </div>
-    </header>
+    <n-layout-header style="display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:46px;background:rgba(12,12,20,0.85);backdrop-filter:blur(12px);z-index:100;border-bottom:1px solid rgba(255,255,255,0.04);">
+      <n-space align="center" :size="8">
+        <span style="font-weight:700;font-size:15px;background:linear-gradient(135deg,#6366f1,#a5b4fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:0.5px;">Cee</span>
+        <span style="color:rgba(255,255,255,0.12);font-weight:200;font-size:14px;">/</span>
+        <span style="font-weight:500;font-size:14px;letter-spacing:2px;color:#e8e8f0;">{{ roomStore.roomId }}</span>
+        <div :style="{ width:6, height:6, borderRadius:3, background: roomStore.connected ? '#34d399' : '#f87171', transition:'background 0.3s' }"></div>
+      </n-space>
+      <n-space :size="6">
+        <n-button text size="tiny" depth="3" @click="forceDesktop" v-if="isRemoteMode">完整视图</n-button>
+        <n-button text size="tiny" depth="3" @click="forceMobile" v-if="!isRemoteMode && isMobile">遥控模式</n-button>
+      </n-space>
+    </n-layout-header>
 
-    <div class="room-body">
-      <!-- Remote Mode -->
-      <template v-if="isRemoteMode">
-        <div class="remote-wrapper">
-          <RemoteControl
-            :media-title="roomStore.media?.title || ''"
-            :is-playing="roomStore.player.playing"
-            :current-time="expectedPosition"
-            :duration="roomDuration"
-            :progress-percent="progressPercent"
-            :messages="roomStore.chatHistory"
-            :members="roomStore.members"
-            :self-id="roomStore.selfId"
-            @toggle-play="togglePlay"
-            @skip="handleSkip"
-            @seek="handleSeek"
-            @send-chat="handleChatSend"
-          />
-        </div>
-      </template>
+    <!-- Remote Mode -->
+    <template v-if="isRemoteMode">
+      <n-layout-content style="padding:24px;max-width:420px;margin:0 auto;">
+        <RemoteControl
+          :media-title="roomStore.media?.title || ''"
+          :is-playing="roomStore.player.playing"
+          :current-time="expectedPosition"
+          :duration="roomDuration"
+          :progress-percent="progressPercent"
+          :messages="roomStore.chatHistory"
+          :members="roomStore.members"
+          :self-id="roomStore.selfId"
+          @toggle-play="togglePlay"
+          @skip="handleSkip"
+          @seek="handleSeek"
+          @send-chat="handleChatSend"
+        />
+      </n-layout-content>
+    </template>
 
-      <!-- Full Mode -->
-      <template v-else>
-        <div class="main-area">
-          <div class="player-section">
+    <!-- Full Mode -->
+    <template v-else>
+      <n-layout-content style="padding:12px;" :native-scrollbar="false">
+        <div class="room-grid">
+          <!-- Left: Player Column -->
+          <div class="player-col">
             <PlayerArea
               ref="playerAreaRef"
               :media="roomStore.media"
@@ -66,70 +56,55 @@
               @seek-debounce="handleSeekDebounce"
             />
 
-            <!-- Progress bar -->
-            <div class="progress-bar-wrapper" v-if="roomStore.media">
-              <div class="progress-bar" ref="progressBarRef" @click="handleProgressClick">
-                <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-                <div class="progress-thumb" :style="{ left: progressPercent + '%' }"></div>
-              </div>
-              <div class="progress-time">
-                <span class="time-display">{{ formatTime(expectedPosition) }}</span>
-                <span class="time-display dim">{{ formatTime(roomDuration) }}</span>
-              </div>
-            </div>
-
             <!-- Controls -->
-            <div class="player-controls" v-if="roomStore.media">
-              <button class="ctrl-btn" @click="handleSkip(-10)" title="后退 10s">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
-              </button>
-              <button class="ctrl-btn ctrl-play" @click="togglePlay">
-                <svg v-if="roomStore.player.playing" viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                <svg v-else viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M8 5v14l11-7z"/></svg>
-              </button>
-              <button class="ctrl-btn" @click="handleSkip(10)" title="前进 10s">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M4 13c0 4.42 3.58 8 8 8s8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8z"/></svg>
-              </button>
+            <div v-if="roomStore.media" class="controls">
+              <div class="pr-bar" @click="handleProgressClick">
+                <div class="pr-track">
+                  <div class="pr-fill" :style="{ width: progressPercent + '%' }"></div>
+                  <div class="pr-thumb" :style="{ left: progressPercent + '%' }"></div>
+                </div>
+              </div>
+              <div class="pr-time">
+                <span>{{ formatTime(expectedPosition) }}</span>
+                <span style="opacity:0.3;">{{ formatTime(roomDuration) }}</span>
+              </div>
+              <div class="pr-ctrls">
+                <n-button circle quaternary size="small" @click="handleSkip(-10)">
+                  <template #icon><n-icon :size="16"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg></n-icon></template>
+                </n-button>
+                <n-button :type="roomStore.player.playing ? 'warning' : 'primary'" circle style="width:44px;height:44px;" @click="togglePlay">
+                  <template #icon><n-icon :size="22"><svg v-if="roomStore.player.playing" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg><svg v-else viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></n-icon></template>
+                </n-button>
+                <n-button circle quaternary size="small" @click="handleSkip(10)">
+                  <template #icon><n-icon :size="16"><svg viewBox="0 0 24 24"><path d="M4 13c0 4.42 3.58 8 8 8s8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8z"/></svg></n-icon></template>
+                </n-button>
+              </div>
             </div>
 
-            <!-- Media Input -->
-            <MediaInput
-              :send-ws="send"
-              :connected="roomStore.connected"
-              @submit="handleMediaSubmit"
-              @upload-start="handleUploadStart"
-              style="margin-top: 8px;"
-            />
+            <MediaInput :send-ws="send" :connected="roomStore.connected" @submit="handleMediaSubmit" @upload-start="handleUploadStart" />
           </div>
 
-          <div class="sidebar-section">
-            <!-- Members -->
-            <div class="sidebar-card">
-              <div class="sidebar-card-header">
-                成员 · {{ roomStore.members.length }}
-              </div>
-              <div class="member-list">
-                <div v-for="member in roomStore.members" :key="member.id" class="member-item">
-                  <div class="member-avatar">{{ member.nickname.charAt(0).toUpperCase() }}</div>
-                  <span class="member-name">{{ member.nickname }}</span>
-                  <span v-if="member.id === roomStore.selfId" class="member-self">我</span>
+          <!-- Right: Sidebar -->
+          <div class="sidebar-col">
+            <div class="sd-card">
+              <div class="sd-title">成员 · {{ roomStore.members.length }}</div>
+              <div class="sd-members">
+                <div v-for="member in roomStore.members" :key="member.id" class="sd-member">
+                  <div class="sd-avatar">{{ member.nickname.charAt(0) }}</div>
+                  <span class="sd-name">{{ member.nickname }}</span>
+                  <span v-if="member.id === roomStore.selfId" class="sd-badge">我</span>
                 </div>
-                <div v-if="roomStore.members.length === 0" class="member-empty">暂无成员</div>
+                <n-empty v-if="roomStore.members.length === 0" description="暂无成员" size="small" style="padding:12px 0;" />
               </div>
             </div>
 
             <!-- Chat -->
-            <ChatPanel
-              :messages="roomStore.chatHistory"
-              :connected="roomStore.connected"
-              :self-id="roomStore.selfId"
-              @send="handleChatSend"
-            />
+            <ChatPanel :messages="roomStore.chatHistory" :connected="roomStore.connected" :self-id="roomStore.selfId" @send="handleChatSend" />
           </div>
         </div>
-      </template>
-    </div>
-  </div>
+      </n-layout-content>
+    </template>
+  </n-layout>
 </template>
 
 <script setup lang="ts">
@@ -151,25 +126,16 @@ const message = useMessage()
 const roomStore = useRoomStore()
 const { connect, send, on, off, connected } = useWebSocket()
 const clockStore = useClockSync()
-const playerAreaRef = ref<InstanceType<typeof PlayerArea> | null>(null)
+const playerAreaRef = ref<any>(null)
 const showNicknameModal = ref(false)
 const nicknameInput = ref('')
-const progressBarRef = ref<HTMLElement | null>(null)
 
 const isMobile = isMobileDevice()
 const remoteOverride = ref(!getMobileOverride())
-
 const isRemoteMode = computed(() => !remoteOverride.value && !!(roomStore.media))
 
-function forceMobile() {
-  remoteOverride.value = true
-  setMobileOverride(true)
-}
-
-function forceDesktop() {
-  remoteOverride.value = false
-  setMobileOverride(false)
-}
+function forceMobile() { remoteOverride.value = true; setMobileOverride(true) }
+function forceDesktop() { remoteOverride.value = false; setMobileOverride(false) }
 
 let nickname = ''
 let pingTimer: ReturnType<typeof setInterval> | null = null
@@ -177,504 +143,101 @@ let pingTimer: ReturnType<typeof setInterval> | null = null
 const expectedPosition = computed(() => {
   const p = roomStore.player
   if (!p) return -1
-  if (p.playing) {
-    return p.position + (clockStore.serverNow() - p.updated_at) / 1000
-  }
-  return p.position
+  return p.playing ? p.position + (clockStore.serverNow() - p.updated_at) / 1000 : p.position
 })
-
-const roomDuration = computed(() => {
-  return 0
-})
-
+const roomDuration = computed(() => 0)
 const progressPercent = computed(() => {
-  const dur = roomDuration.value
-  if (!dur || dur <= 0) return 0
-  const ep = Math.max(0, expectedPosition.value)
-  return Math.min(100, (ep / dur) * 100)
+  const d = roomDuration.value; return (!d || d <= 0) ? 0 : Math.min(100, Math.max(0, (expectedPosition.value / d) * 100))
 })
 
 watch(connected, (val) => {
-  if (val) {
-    send({
-      type: 'join',
-      payload: {
-        nickname,
-        member_token: sessionStorage.getItem('member_token') || undefined,
-      },
-    })
-    clockStore.sendPing(send)
-  }
+  if (!val) return
+  send({ type: 'join', payload: { nickname, member_token: sessionStorage.getItem('member_token') || undefined } })
+  clockStore.sendPing(send)
 })
 
 onMounted(() => {
-  const roomId = route.params.roomId as string
-  roomStore.roomId = roomId
-
+  roomStore.roomId = route.params.roomId as string
   nickname = sessionStorage.getItem('nickname') || ''
-  if (!nickname) {
-    showNicknameModal.value = true
-  } else {
-    connectAndJoin()
-  }
+  nickname ? connectAndJoin() : (showNicknameModal.value = true)
 })
 
 function confirmNickname() {
   nickname = nicknameInput.value || '匿名用户'
   sessionStorage.setItem('nickname', nickname)
-  showNicknameModal.value = false
-  connectAndJoin()
+  showNicknameModal.value = false; connectAndJoin()
 }
 
 function connectAndJoin() {
-  const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const wsUrl = `${wsProtocol}://${location.host}/ws/${roomStore.roomId}`
-  connect(wsUrl)
+  const wsP = location.protocol === 'https:' ? 'wss' : 'ws'
+  connect(`${wsP}://${location.host}/ws/${roomStore.roomId}`)
 
-  const handlers: Array<[string, (msg: Message) => void]> = []
+  const handlers: Array<[string, (m: Message) => void]> = []
+  const reg = (t: string, fn: (m: Message) => void) => { on(t, fn); handlers.push([t, fn]) }
 
-  function register(type: string, handler: (msg: Message) => void) {
-    on(type, handler)
-    handlers.push([type, handler])
-  }
-
-  register('room_state', (msg: Message) => {
-    const payload = msg.payload as unknown as RoomStatePayload
-    roomStore.setRoomState(payload)
-    roomStore.connected = true
-  })
-
-  register('member_join', (msg: Message) => {
-    const payload = msg.payload as unknown as MemberInfo
-    roomStore.addMember(payload)
-    message.success(`${payload.nickname} 加入了房间`)
-  })
-
-  register('member_resume', (msg: Message) => {
-    const payload = msg.payload as unknown as MemberInfo
-    roomStore.addMember(payload)
-  })
-
-  register('member_leave', (msg: Message) => {
-    const payload = msg.payload as unknown as { id: string }
-    roomStore.removeMember(payload.id)
-  })
-
-  register('chat', (msg: Message) => {
-    const payload = msg.payload as unknown as ChatMessage
-    roomStore.addChatMessage(payload)
-  })
-
-  register('player_update', (msg: Message) => {
-    const payload = msg.payload as unknown as PlayerUpdatePayload
-    roomStore.player = {
-      playing: payload.playing,
-      position: payload.position,
-      updated_at: payload.updated_at,
-      reason: payload.reason,
-    }
-  })
-
-  register('media_update', (msg: Message) => {
-    const payload = msg.payload as unknown as MediaUpdatePayload
-    roomStore.media = {
-      kind: payload.kind,
-      source_url: payload.source_url,
-      media_type: payload.media_type,
-      title: payload.title,
-      status: payload.status,
-      uploader_id: payload.uploader_id,
-    }
-  })
-
-  register('upload_progress', (msg: Message) => {
-    const payload = msg.payload as unknown as { member_id: string; upload_id: string; bytes_uploaded: number; bytes_total: number }
-  })
-
-  register('upload_cancel', (_msg: Message) => {})
-
-  register('pong', (msg: Message) => {
-    clockStore.handlePong(msg)
-  })
-
-  register('error', (msg: Message) => {
-    const payload = msg.payload as unknown as { code: string; message: string }
-    message.error(`错误: ${payload.message}`)
-  })
+  reg('room_state', (m) => { const p = m.payload as unknown as RoomStatePayload; roomStore.setRoomState(p); roomStore.connected = true })
+  reg('member_join', (m) => { const p = m.payload as unknown as MemberInfo; roomStore.addMember(p); message.success(`${p.nickname} 加入了房间`) })
+  reg('member_resume', (m) => roomStore.addMember(m.payload as unknown as MemberInfo))
+  reg('member_leave', (m) => roomStore.removeMember((m.payload as unknown as { id: string }).id))
+  reg('chat', (m) => roomStore.addChatMessage(m.payload as unknown as ChatMessage))
+  reg('player_update', (m) => { const p = m.payload as unknown as PlayerUpdatePayload; roomStore.player = { playing: p.playing, position: p.position, updated_at: p.updated_at, reason: p.reason } })
+  reg('media_update', (m) => { const p = m.payload as unknown as MediaUpdatePayload; roomStore.media = { kind: p.kind, source_url: p.source_url, media_type: p.media_type, title: p.title, status: p.status, uploader_id: p.uploader_id } })
+  reg('pong', (m) => clockStore.handlePong(m))
+  reg('error', (m) => message.error(`错误: ${(m.payload as unknown as { message: string }).message}`))
 
   let cleaned = false
-  onUnmounted(() => {
-    if (!cleaned) {
-      cleaned = true
-      for (const [type, handler] of handlers) {
-        off(type, handler)
-      }
-    }
-  })
+  onUnmounted(() => { if (!cleaned) { cleaned = true; handlers.forEach(([t, h]) => off(t, h)) } })
 
-  pingTimer = setInterval(() => {
-    if (clockStore.sampleCount < clockStore.targetSamples) {
-      clockStore.sendPing(send)
-    }
-  }, 200)
-
-  setTimeout(() => {
-    clearInterval(pingTimer!)
-    pingTimer = null
-    pingTimer = setInterval(() => {
-      clockStore.sendPing(send)
-    }, 300000)
-  }, 2000)
+  pingTimer = setInterval(() => { if (clockStore.sampleCount < clockStore.targetSamples) clockStore.sendPing(send) }, 200)
+  setTimeout(() => { clearInterval(pingTimer!); pingTimer = setInterval(() => clockStore.sendPing(send), 300000) }, 2000)
 }
 
-onUnmounted(() => {
-  if (pingTimer) clearInterval(pingTimer)
-})
+onUnmounted(() => { if (pingTimer) clearInterval(pingTimer) })
 
-function handleMediaSubmit(kind: 'url', sourceUrl: string, title: string) {
-  send({ type: 'change_media', payload: { kind, source_url: sourceUrl, title } })
-}
-
-function handleUploadStart(uploadId: string) {
-  send({ type: 'change_media', payload: { kind: 'upload', upload_id: uploadId } })
-}
-
-function handleChatSend(text: string) {
-  send({ type: 'chat', payload: { text } })
-}
-
-function togglePlay() {
-  const p = roomStore.player
-  if (p.playing) {
-    send({ type: 'pause', payload: { position: expectedPosition.value } })
-  } else {
-    send({ type: 'play', payload: { position: expectedPosition.value } })
-  }
-}
-
-function handleSkip(seconds: number) {
-  const pos = Math.max(0, expectedPosition.value + seconds)
-  send({ type: 'seek', payload: { position: pos } })
-}
-
-function handleSeek(position: number) {
-  send({ type: 'seek', payload: { position } })
-}
-
-function handleProgressClick(e: MouseEvent) {
-  const el = progressBarRef.value
-  if (!el) return
-  const rect = el.getBoundingClientRect()
-  const pct = (e.clientX - rect.left) / rect.width
-  const pos = pct * roomDuration.value
-  handleSeek(pos)
-}
-
-function handleSeekDebounce(position: number) {
-  send({ type: 'seek', payload: { position } })
-}
-
-function handleBuffering(buffering: boolean) {
-  send({ type: 'buffering', payload: { buffering } })
-}
-
-function handleHeartbeat(position: number, playing: boolean, duration?: number) {
-  send({ type: 'heartbeat', payload: { position, playing, duration } })
-}
-
-function formatTime(seconds: number): string {
-  if (!seconds || !isFinite(seconds)) return '0:00'
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
+const handleMediaSubmit = (kind: 'url', sourceUrl: string, title: string) => send({ type: 'change_media', payload: { kind, source_url: sourceUrl, title } })
+const handleUploadStart = (uploadId: string) => send({ type: 'change_media', payload: { kind: 'upload', upload_id: uploadId } })
+const handleChatSend = (text: string) => send({ type: 'chat', payload: { text } })
+const togglePlay = () => { const p = roomStore.player; send({ type: p.playing ? 'pause' : 'play', payload: { position: expectedPosition.value } }) }
+const handleSkip = (s: number) => send({ type: 'seek', payload: { position: Math.max(0, expectedPosition.value + s) } })
+const handleSeek = (pos: number) => send({ type: 'seek', payload: { position: pos } })
+const handleProgressClick = (e: MouseEvent) => { const el = e.currentTarget as HTMLElement; const r = el.getBoundingClientRect(); handleSeek(((e.clientX - r.left) / r.width) * roomDuration.value) }
+const handleSeekDebounce = (pos: number) => send({ type: 'seek', payload: { position: pos } })
+const handleBuffering = (b: boolean) => send({ type: 'buffering', payload: { buffering: b } })
+const handleHeartbeat = (pos: number, playing: boolean, duration?: number) => send({ type: 'heartbeat', payload: { position: pos, playing, duration } })
+const formatTime = (s: number) => (!s || !isFinite(s)) ? '0:00' : `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
 </script>
 
 <style scoped>
-.room-layout {
-  min-height: 100vh;
-  background: #0f0f1a;
-  display: flex;
-  flex-direction: column;
+.room-grid {
+  display: flex; gap: 16px; align-items: flex-start;
 }
+.player-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.sidebar-col { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
 
-/* Top Bar */
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  background: rgba(26, 26, 46, 0.8);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+/* Controls */
+.controls { padding: 12px 14px; background: rgba(20,20,31,0.5); border-radius: 8px; }
+.pr-bar { cursor: pointer; padding: 5px 0; }
+.pr-track { position: relative; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; transition: height 0.12s; }
+.pr-bar:hover .pr-track { height: 6px; }
+.pr-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #a5b4fc); border-radius: 2px; transition: width 0.1s linear; }
+.pr-thumb {
+  position: absolute; top: 50%; width: 11px; height: 11px; background: #e8e8f0; border-radius: 50%;
+  transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.12s;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
 }
+.pr-bar:hover .pr-thumb { opacity: 1; }
+.pr-time { display: flex; justify-content: space-between; margin-top: 3px; font-size: 11px; color: rgba(255,255,255,0.2); font-variant-numeric: tabular-nums; }
+.pr-ctrls { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 6px; }
 
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* Sidebar cards */
+.sd-card { background: rgba(20,20,31,0.5); border-radius: 8px; padding: 14px; }
+.sd-title { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.2); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px; }
+.sd-members { display: flex; flex-direction: column; gap: 4px; }
+.sd-member { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; transition: background 0.12s; }
+.sd-member:hover { background: rgba(255,255,255,0.02); }
+.sd-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #a5b4fc); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.sd-name { flex: 1; font-size: 13px; color: #e8e8f0; }
+.sd-badge { font-size: 10px; color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.03); padding: 1px 5px; border-radius: 3px; }
 
-.topbar-brand {
-  font-weight: 700;
-  font-size: 16px;
-  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.topbar-sep {
-  color: rgba(255, 255, 255, 0.15);
-  font-size: 14px;
-}
-
-.topbar-room {
-  font-size: 15px;
-  font-weight: 600;
-  color: #e0e0f0;
-  letter-spacing: 2px;
-}
-
-.topbar-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #e74c3c;
-  transition: background 0.3s;
-}
-
-.topbar-dot.connected {
-  background: #2ecc71;
-  box-shadow: 0 0 8px rgba(46, 204, 113, 0.4);
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Body */
-.room-body {
-  flex: 1;
-  padding: 20px;
-}
-
-.main-area {
-  display: flex;
-  gap: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  align-items: flex-start;
-}
-
-.player-section {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Progress Bar */
-.progress-bar-wrapper {
-  padding: 0 4px;
-}
-
-.progress-bar {
-  position: relative;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: height 0.15s;
-}
-
-.progress-bar:hover {
-  height: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #6c5ce7, #a29bfe);
-  border-radius: 3px;
-  transition: width 0.1s linear;
-}
-
-.progress-thumb {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.progress-bar:hover .progress-thumb {
-  opacity: 1;
-}
-
-.progress-time {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-}
-
-.time-display {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  font-variant-numeric: tabular-nums;
-}
-
-.time-display.dim {
-  color: rgba(255, 255, 255, 0.2);
-}
-
-/* Player Controls */
-.player-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  padding: 8px 0;
-}
-
-.ctrl-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-}
-
-.ctrl-play {
-  width: 56px;
-  height: 56px;
-  background: linear-gradient(135deg, #6c5ce7, #7d6ef0);
-  color: #fff;
-  box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
-}
-
-.ctrl-play:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(108, 92, 231, 0.4);
-}
-
-/* Sidebar */
-.sidebar-section {
-  width: 340px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sidebar-card {
-  background: rgba(26, 26, 46, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.sidebar-card-header {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 12px;
-  letter-spacing: 0.5px;
-}
-
-.member-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.member-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  transition: background 0.15s;
-}
-
-.member-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.member-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.member-name {
-  flex: 1;
-  font-size: 14px;
-  color: #e0e0f0;
-}
-
-.member-self {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.member-empty {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.2);
-  text-align: center;
-  padding: 16px;
-}
-
-/* Remote */
-.remote-wrapper {
-  max-width: 420px;
-  margin: 0 auto;
-  padding-top: 20px;
-}
-
-@media (max-width: 768px) {
-  .main-area {
-    flex-direction: column;
-  }
-  .sidebar-section {
-    width: 100%;
-  }
-  .topbar {
-    padding: 10px 16px;
-  }
-  .room-body {
-    padding: 12px;
-  }
-}
+@media (max-width: 860px) { .room-grid { flex-direction: column; align-items: stretch; } .sidebar-col { width: auto; } }
 </style>
